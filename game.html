@@ -1,0 +1,308 @@
+<rosieArtifact title="Midnight Highway Racer">
+<rosieCreate file="index.html">
+<![CDATA[
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Midnight Highway Racer</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://esm.sh/three@0.160.0?dev",
+          "three/": "https://esm.sh/three@0.160.0&dev/"
+        }
+      }
+    </script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #001122;
+        font-family: 'Courier New', monospace;
+      }
+      #gameContainer {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+      #hud {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        pointer-events: none;
+        z-index: 100;
+      }
+      .gauge {
+        background: rgba(0, 20, 40, 0.8);
+        border: 2px solid #00ffff;
+        border-radius: 50%;
+        width: 120px;
+        height: 120px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #00ffff;
+        text-shadow: 0 0 10px #00ffff;
+      }
+      .speed-value {
+        font-size: 24px;
+        font-weight: bold;
+      }
+      .speed-label {
+        font-size: 12px;
+        opacity: 0.8;
+      }
+      #instructions {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: #00ffff;
+        text-shadow: 0 0 10px #00ffff;
+        font-size: 14px;
+        z-index: 100;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="gameContainer">
+      <div id="instructions">
+        WASD / Arrow Keys: Drive<br>
+        Shift: Boost
+      </div>
+      <div id="hud">
+        <div class="gauge">
+          <div class="speed-value" id="speed">0</div>
+          <div class="speed-label">KM/H</div>
+        </div>
+        <div class="gauge">
+          <div class="speed-value" id="gear">N</div>
+          <div class="speed-label">GEAR</div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="main.js"></script>
+    <script src="https://storage.googleapis.com/rosebud_staticfiles/ScriptsLoader-Universal.js"></script>
+    <script src="https://storage.googleapis.com/rosebud_staticfiles/ChatManager.js"></script>
+    <script src="https://storage.googleapis.com/rosebud_staticfiles/ImageGenerator.js"></script>
+    <script src="https://storage.googleapis.com/rosebud_staticfiles/ProgressLogger.js"></script>
+    <script src="https://storage.googleapis.com/rosebud_staticfiles/OGP.js"></script>
+  </body>
+</html>
+]]>
+</rosieCreate>
+<rosieCreate file="main.js">
+<![CDATA[
+import * as THREE from 'three';
+import { RacingGame } from './game.js';
+
+class GameManager {
+  constructor() {
+    this.init();
+  }
+
+  init() {
+    // Create game container
+    this.container = document.getElementById('gameContainer');
+    
+    // Initialize the racing game
+    this.game = new RacingGame(this.container);
+    
+    // Start the game loop
+    this.animate();
+  }
+
+  animate() {
+    requestAnimationFrame(() => this.animate());
+    this.game.update();
+  }
+}
+
+// Start the game when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+  new GameManager();
+});
+]]>
+</rosieCreate>
+<rosieCreate file="game.js">
+<![CDATA[
+import * as THREE from 'three';
+import { Car } from './car.js';
+import { Highway } from './highway.js';
+import { UI } from './ui.js';
+
+export class RacingGame {
+  constructor(container) {
+    this.container = container;
+    this.clock = new THREE.Clock();
+    this.init();
+  }
+
+  init() {
+    // Create renderer
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.setClearColor(0x001122);
+    this.container.appendChild(this.renderer.domElement);
+
+    // Create scene
+    this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.Fog(0x002244, 50, 300);
+
+    // Create camera
+    this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+    // Create game components
+    this.highway = new Highway(this.scene);
+    this.car = new Car(this.scene, this.camera);
+    this.ui = new UI();
+
+    // Setup lighting
+    this.setupLighting();
+
+    // Handle window resize
+    window.addEventListener('resize', () => this.onWindowResize());
+  }
+
+  setupLighting() {
+    // Ambient light for overall blue atmosphere
+    const ambientLight = new THREE.AmbientLight(0x002244, 0.3);
+    this.scene.add(ambientLight);
+
+    // Directional light for moonlight effect
+    const moonLight = new THREE.DirectionalLight(0x4488bb, 0.5);
+    moonLight.position.set(-50, 100, 50);
+    moonLight.castShadow = true;
+    moonLight.shadow.mapSize.width = 2048;
+    moonLight.shadow.mapSize.height = 2048;
+    moonLight.shadow.camera.near = 0.5;
+    moonLight.shadow.camera.far = 200;
+    moonLight.shadow.camera.left = -100;
+    moonLight.shadow.camera.right = 100;
+    moonLight.shadow.camera.top = 100;
+    moonLight.shadow.camera.bottom = -100;
+    this.scene.add(moonLight);
+  }
+
+  update() {
+    const deltaTime = this.clock.getDelta();
+    
+    // Update game components
+    this.car.update(deltaTime);
+    this.highway.update(this.car.position);
+    this.ui.update(this.car.getSpeed(), this.car.getGear());
+
+    // Render the scene
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  onWindowResize() {
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+}
+]]>
+</rosieCreate>
+<rosieCreate file="car.js">
+<![CDATA[
+import * as THREE from 'three';
+
+export class Car {
+  constructor(scene, camera) {
+    this.scene = scene;
+    this.camera = camera;
+    
+    // Car physics properties
+    this.position = new THREE.Vector3(0, 0.5, 0);
+    this.velocity = new THREE.Vector3();
+    this.speed = 0;
+    this.maxSpeed = 80;
+    this.acceleration = 25;
+    this.deceleration = 15;
+    this.steerAngle = 0;
+    this.maxSteerAngle = 0.5;
+    this.steerSpeed = 2;
+    this.gear = 1;
+    
+    // Input state
+    this.keys = {};
+    this.setupInput();
+    
+    // Create car mesh (invisible since we're in first person)
+    this.createCarMesh();
+    
+    // Setup camera position
+    this.setupCamera();
+  }
+
+  createCarMesh() {
+    // Create invisible car body for physics reference
+    const carGeometry = new THREE.BoxGeometry(2, 1, 4);
+    const carMaterial = new THREE.MeshLambertMaterial({ color: 0x333333, transparent: true, opacity: 0 });
+    this.mesh = new THREE.Mesh(carGeometry, carMaterial);
+    this.mesh.position.copy(this.position);
+    this.scene.add(this.mesh);
+  }
+
+  setupCamera() {
+    // Position camera as if sitting in driver's seat
+    this.cameraOffset = new THREE.Vector3(0, 1.2, 0.5);
+    this.updateCameraPosition();
+  }
+
+  setupInput() {
+    document.addEventListener('keydown', (e) => {
+      this.keys[e.code] = true;
+    });
+
+    document.addEventListener('keyup', (e) => {
+      this.keys[e.code] = false;
+    });
+  }
+
+  update(deltaTime) {
+    this.handleInput(deltaTime);
+    this.updatePhysics(deltaTime);
+    this.updatePosition(deltaTime);
+    this.updateCameraPosition();
+    this.updateGear();
+  }
+
+  handleInput(deltaTime) {
+    let targetAcceleration = 0;
+    let targetSteering = 0;
+
+    // Acceleration/Deceleration
+    if (this.keys['KeyW'] || this.keys['ArrowUp']) {
+      targetAcceleration = this.acceleration;
+      if (this.keys['ShiftLeft'] || this.keys['ShiftRight']) {
+        targetAcceleration *= 1.5; // Boost
+      }
+    } else if (this.keys['KeyS'] || this.keys['ArrowDown']) {
+      targetAcceleration = -this.deceleration;
+    }
+
+    // Steering
+    if (this.keys['KeyA'] || this.keys['ArrowLeft']) {
+      targetSteering = -this.maxSteerAngle;
+    } else if (this.keys['KeyD'] || this.keys['ArrowRight']) {
+      targetSteering = this.maxSteerAngle;
+    }
+
+    // Apply acceleration
+    if (targetAcceleration !== 0) {
+      this.speed += targetAcceleration * deltaTime;
+      this.speed = Math.max(0, Math.min(this.maxSpeed, this.speed));
+    } else {
+      // Natural deceleration
+      this.speed -= this.decel
